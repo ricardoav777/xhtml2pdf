@@ -918,38 +918,22 @@ class PmlLeftPageBreak(CondPageBreak):
 
 # --- Pdf Form
 
+class PmlForm(Flowable):
 
-class PmlInput(Flowable):
-    def __init__(self, name, input_type="text", width=10, height=10, default="",
-                 options=None):
-        self.width = width
-        self.height = height
-        self.type = input_type
-        self.name = name
-        self.default = default
-        self.options = options if options is not None else []
+    def __init__(self, name, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.inputs = list()
+        self.name=name
+
+    def add_input(self, item):
+        self.inputs.append(item)
 
     def wrap(self, *args):
         return self.width, self.height
 
     def draw(self):
-        c = self.canv
+        for item in self.inputs:
+            item.render_form(self.canv)
 
-        c.saveState()
-        c.setFont("Helvetica", 10)
-        if self.type == "text":
-            pdfform.textFieldRelative(c, self.name, 0, 0, self.width, self.height)
-            c.rect(0, 0, self.width, self.height)
-        elif self.type == "radio":
-            c.rect(0, 0, self.width, self.height)
-        elif self.type == "checkbox":
-            if self.default:
-                pdfform.buttonFieldRelative(c, self.name, "Yes", 0, 0)
-            else:
-                pdfform.buttonFieldRelative(c, self.name, "Off", 0, 0)
-            c.rect(0, 0, self.width, self.height)
-        elif self.type == "select":
-            pdfform.selectFieldRelative(c, self.name, self.default, self.options, 0, 0, self.width, self.height)
-            c.rect(0, 0, self.width, self.height)
 
-        c.restoreState()
+

@@ -30,8 +30,9 @@ from reportlab.platypus.frames import Frame
 from reportlab.platypus.paraparser import ABag, tt2ps
 
 from xhtml2pdf import xhtml2pdf_reportlab
+from xhtml2pdf.form_items import TextfieldItem, RadioItem, CheckboxItem
 from xhtml2pdf.util import dpi96, getAlign, getColor, getSize
-from xhtml2pdf.xhtml2pdf_reportlab import PmlImage, PmlPageTemplate
+from xhtml2pdf.xhtml2pdf_reportlab import PmlImage, PmlPageTemplate, PmlForm
 
 log = logging.getLogger("xhtml2pdf")
 
@@ -441,56 +442,103 @@ class pisaTagHR(pisaTag):
 
 # --- Forms
 
+# class pisaTagINPUT(pisaTag):
+#
+#         def _render(self, c, attr):
+#             width = 10
+#             height = 10
+#             if attr.type == "text":
+#                 width = 100
+#                 height = 12
+#             c.addStory(xhtml2pdf_reportlab.PmlInput(attr.name,
+#                                                     type=attr.type,
+#                                                     default=attr.value,
+#                                                     width=width,
+#                                                     height=height,
+#             ))
+#
+#         def end(self, c):
+#             c.addPara()
+#             attr = self.attr
+#             if attr.name:
+#                 self._render(c, attr)
+#             c.addPara()
+#
+# class pisaTagTEXTAREA(pisaTagINPUT):
+#
+#     def _render(self, c, attr):
+#         c.addStory(xhtml2pdf_reportlab.PmlInput(attr.name,
+#                                                 default="",
+#                                                 width=100,
+#                                                 height=100))
 
-if 0:
+# class pisaTagSELECT(pisaTagINPUT):
+#
+#     def start(self, c):
+#         c.select_options = ["One", "Two", "Three"]
+#
+#     def _render(self, c, attr):
+#         c.addStory(xhtml2pdf_reportlab.PmlInput(attr.name,
+#                                                 type="select",
+#                                                 default=c.select_options[0],
+#                                                 options=c.select_options,
+#                                                 width=100,
+#                                                 height=40))
+#         c.select_options = None
 
-    class pisaTagINPUT(pisaTag):
+# class pisaTagOPTION(pisaTag):
+#
+#     pass
 
-        def _render(self, c, attr):
-            width = 10
-            height = 10
-            if attr.type == "text":
-                width = 100
-                height = 12
-            c.addStory(xhtml2pdf_reportlab.PmlInput(attr.name,
-                                                    type=attr.type,
-                                                    default=attr.value,
-                                                    width=width,
-                                                    height=height,
-            ))
+#--- End forms
 
-        def end(self, c):
-            c.addPara()
-            attr = self.attr
-            if attr.name:
-                self._render(c, attr)
-            c.addPara()
 
-    class pisaTagTEXTAREA(pisaTagINPUT):
+#--- NEW FORMS
 
-        def _render(self, c, attr):
-            c.addStory(xhtml2pdf_reportlab.PmlInput(attr.name,
-                                                    default="",
-                                                    width=100,
-                                                    height=100))
+class pisaTagFORM(pisaTag):
+    def start(self, c):
+        c.currentform = PmlForm('myForm')
+        c.addStory(c.currentform)
 
-    class pisaTagSELECT(pisaTagINPUT):
+    def end(self, c):
+        c.currentform = None
 
-        def start(self, c):
-            c.select_options = ["One", "Two", "Three"]
 
-        def _render(self, c, attr):
-            c.addStory(xhtml2pdf_reportlab.PmlInput(attr.name,
-                                                    type="select",
-                                                    default=c.select_options[0],
-                                                    options=c.select_options,
-                                                    width=100,
-                                                    height=40))
-            c.select_options = None
+class pisaTagINPUT(pisaTag):
 
-    class pisaTagOPTION(pisaTag):
+    def __init__(self, node, attr):
+        super().__init__(node, attr)
+        self.form_item = None
+        self.input_dict = {
+            "text": TextfieldItem,
+            "radio": RadioItem,
+            "checbox": CheckboxItem,
+        }
 
-        pass
+    def start(self, c):
+        input_type = None
+        nodetype = dict(c.node.attributes).get('type')
+
+        if nodetype:
+            input_type = nodetype.nodeValue
+
+        if input_type and input_type == 'text': # This is just for test, correct = in self.input_dict
+            self.form_item = self.input_dict[input_type]()
+            # dummy data just testing
+            data = {
+                'x': 10,
+                'y': 650,
+            }
+            self.form_item.set_properties(data)
+            self.form_item.value = "intento1"  # POSITION X INSIDE DRAWING
+            self.form_item.fontSize = 12  # POSITION Y INSIDE DRAWING
+
+    def end(self, c):
+        c.currentform.add_input(self)
+
+    def render_form(self, canvas):
+        form = canvas.acroForm
+        form.textfield()
 
 
 class pisaTagPDFNEXTPAGE(pisaTag):
