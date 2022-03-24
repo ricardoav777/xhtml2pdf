@@ -18,6 +18,7 @@ from __future__ import print_function, unicode_literals
 
 import copy
 import logging
+import random
 import re
 import string
 import warnings
@@ -30,7 +31,7 @@ from reportlab.platypus.frames import Frame
 from reportlab.platypus.paraparser import ABag, tt2ps
 
 from xhtml2pdf import xhtml2pdf_reportlab
-from xhtml2pdf.form_items import TextfieldItem, RadioItem, CheckboxItem
+from xhtml2pdf.form_items import TextfieldItem, RadioItem, CheckboxItem, ListboxItem, ChoiceItem
 from xhtml2pdf.util import dpi96, getAlign, getColor, getSize
 from xhtml2pdf.xhtml2pdf_reportlab import PmlImage, PmlPageTemplate, PmlForm
 
@@ -503,42 +504,161 @@ class pisaTagFORM(pisaTag):
     def end(self, c):
         c.currentform = None
 
-
 class pisaTagINPUT(pisaTag):
 
     def __init__(self, node, attr):
         super().__init__(node, attr)
         self.form_item = None
         self.input_dict = {
+            "text": self.textfield_builder,
+            "radio": self.radio_builder,
+            "checkbox": self.checkbox_builder,
+        }
+        self.form_item_dict = {
             "text": TextfieldItem,
             "radio": RadioItem,
-            "checbox": CheckboxItem,
+            "checkbox": CheckboxItem,
+            "date": TextfieldItem,
         }
+        self.pageSize = None
 
     def start(self, c):
-        input_type = None
-        nodetype = dict(c.node.attributes).get('type')
-
-        if nodetype:
-            input_type = nodetype.nodeValue
-
-        if input_type and input_type == 'text': # This is just for test, correct = in self.input_dict
-            self.form_item = self.input_dict[input_type]()
-            # dummy data just testing
-            data = {
-                'x': 10,
-                'y': 650,
-            }
+        self.pageSize = c.pageSize
+        input_type = self.node.attributes._attrs['type'].value if 'type' in self.node.attributes._attrs else None
+        if input_type and input_type in self.input_dict:
+            data = self.input_dict[input_type](c) # calls the respective builder
+            self.form_item = self.form_item_dict[input_type]()
             self.form_item.set_properties(data)
-            self.form_item.value = "intento1"  # POSITION X INSIDE DRAWING
-            self.form_item.fontSize = 12  # POSITION Y INSIDE DRAWING
+
+    def textfield_builder(self, c):
+        """ Retrieve and assign the textfield data from cssAttr and node attributes"""
+        data = {}
+        if c.cssAttr is not None:
+            data.update(c.cssAttr)
+        data['name'] = self.node.attributes._attrs[
+            'name'].value if 'name' in self.node.attributes._attrs else 'defaultName'
+        data['tooltip'] = self.node.attributes._attrs[
+            'id'].value if 'id' in self.node.attributes._attrs else 'defaultTooltip'
+        if not 'height' in data:
+            data['height'] = "12pt".format(c.frag.fontSize)
+        if not 'width' in data:
+            data['width'] = "120pt"
+        return data
+
+    def radio_builder(self, c):
+        """ Retrieve and assign the radio data from cssAttr and node attributes"""
+        data = {}
+        data['x'] = 10
+        data['y'] = 100 + random.randint(10, 20)
+        if c.cssAttr is not None:
+            data.update(c.cssAttr)
+        data['name'] = self.node.attributes._attrs[
+            'name'].value if 'name' in self.node.attributes._attrs else 'defaultName'
+        data['tooltip'] = self.node.attributes._attrs[
+            'id'].value if 'id' in self.node.attributes._attrs else 'defaultTooltip'
+        data['value'] = self.node.attributes._attrs[
+            'id'].value if 'id' in self.node.attributes._attrs else 'defaultValue'
+        if not 'size' in data:
+            data['size'] = "36pt".format(c.frag.fontSize)
+        return data
+
+    def checkbox_builder(self, c):
+        """ Retrieve and assign the checkbox data from cssAttr and node attributes"""
+        data = {}
+        if c.cssAttr is not None:
+            data.update(c.cssAttr)
+        if not 'size' in data:
+            data['size'] = "36pt".format(c.frag.fontSize)
+        return data
+
+    def set_pos(self, x, y):
+        """ Calls the form item set_pos method, and returns its results, called from drawOn overwrite"""
+        new_x, new_y = self.form_item.set_pos({
+            "x": x,
+            "y": y,
+            "pageSize": self.pageSize
+        })
+        return new_x, new_y
 
     def end(self, c):
+        input_type = self.node.attributes._attrs['type'].value if 'type' in self.node.attributes._attrs else None
+        if input_type is not None and input_type != 'submit' and input_type != 'date':
+            c.currentform.add_input(self)
+
+    def render_form(self, canvas):
+        if self.form_item:
+            self.form_item.create(canvas)
+
+
+class pisaTagSELECT(pisaTag):
+
+    def start(self, c):
+        self.options_list = []
+        c.options_list = self.options_list
+        c.options_default = None
+        if 'size' in self.node.attributes._attrs and int(self.node.attributes._attrs['size'].value) >1:
+            self.form_item = ListboxItem()
+        else:
+            self.form_item = ChoiceItem()
+
+    def set_pos(self, x, y):
+        """ Calls the form item set_pos method, and returns its results, called from drawOn overwrite"""
+        new_x, new_y = self.form_item.set_pos({
+            "x": x,
+            "y": y,
+        })
+        return new_x, new_y
+
+    def end(self, c):
+        data = {}
+        self.options_list = c.options_list
+        if self.options_list:
+            data['options'] = self.options_list
+        #  need to recover default value from options
+        # needs to have a default value otherwise throws error
+        if c.options_default is None:
+            data['value'] = self.options_list[0][0]
+        else:
+            data['value'] = c.options_default
+        if 'multiple' in self.node.attributes._attrs:
+            data['fieldFlags'] = 'multiSelect'
+        if not 'height' in data:
+            data['height'] = "36pt"
+        if not 'width' in data:
+            data['width'] = "36pt"
+        self.form_item.set_properties(data)
         c.currentform.add_input(self)
 
     def render_form(self, canvas):
-        form = canvas.acroForm
-        form.textfield()
+        if self.form_item:
+            self.form_item.create(canvas)
+
+
+
+class pisaTagOPTION(pisaTag):
+
+    def start(self, c):
+        """ Only used to retrieve values and data from each option tag and add it to context dictionary
+        later used in pisaTagSELECT
+        """
+        value = self.attr['value'] if 'value' in self.attr else None
+        default = True if 'selected' in self.node.attributes._attrs else False
+        if value:
+            item = (value, value)
+            c.options_list.append(item)
+        if default:
+            c.options_default = value
+
+
+class pisaTagLABEL(pisaTag):
+    def start(self, c):
+        pass
+
+    def end(self, c):
+        pass
+
+    def render_form(self, canvas):
+        pass
 
 
 class pisaTagPDFNEXTPAGE(pisaTag):

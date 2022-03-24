@@ -72,9 +72,10 @@ from xhtml2pdf.tags import (pisaTagIMG,
                             pisaTagUL,
                             pisaTagINPUT,
                             # pisaTagTEXTAREA,
-                            # pisaTagSELECT,
-                            # pisaTagOPTION
-                            pisaTagFORM
+                            pisaTagSELECT,
+                            pisaTagOPTION,
+                            pisaTagFORM,
+                            # pisaTagLABEL
                             )
 from xhtml2pdf.files import pisaTempFile
 from xhtml2pdf.util import getAlign, getBool, getBox, getColor, getPos, getSize, toList, transform_attrs

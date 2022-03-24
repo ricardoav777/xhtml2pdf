@@ -931,6 +931,17 @@ class PmlForm(Flowable):
     def wrap(self, *args):
         return self.width, self.height
 
+    def drawOn(self, canvas, x, y, _sW = 0):
+        self.new_x, self.new_y = self.inputs[0].set_pos(0, 0)  # ONLY FOR TEST
+
+        # when create pdf now is seen, it is built from bottom to top, and moving on X and Y
+        # that needs to be fixed in set_pos, but first needs to find a way to know the position from html tag
+        # and the canvas.cursor position, so we can define if X needs to be changed or not, and by how much
+
+        for item in self.inputs[1:]:
+            self.new_x, self.new_y = item.set_pos(self.new_x, self.new_y)
+        super().drawOn(canvas, x, y, _sW=_sW)
+
     def draw(self):
         for item in self.inputs:
             item.render_form(self.canv)
